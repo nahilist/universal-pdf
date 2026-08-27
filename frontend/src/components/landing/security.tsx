@@ -7,23 +7,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const securityItems = [
   {
     icon: Lock,
-    title: "End-to-end encryption",
-    description: "All documents are encrypted in transit and at rest using AES-256.",
+    title: "Deployment control",
+    description:
+      "Run the API locally or deploy it inside infrastructure you control.",
   },
   {
     icon: Eye,
-    title: "Zero-knowledge architecture",
-    description: "We never store or train on your document content. Period.",
+    title: "Transparent workflow",
+    description:
+      "The open codebase makes upload, storage, and translation behavior inspectable.",
   },
   {
     icon: FileCheck,
-    title: "SOC 2 Type II certified",
-    description: "Enterprise-grade security controls with regular third-party audits.",
+    title: "Validated uploads",
+    description:
+      "The API checks file structure, size, extension, and page count before processing.",
   },
   {
     icon: Shield,
-    title: "GDPR & CCPA compliant",
-    description: "Full data portability, right to deletion, and privacy controls.",
+    title: "Configurable provider",
+    description:
+      "Translation behavior is selected through backend configuration instead of hidden in the UI.",
   },
 ];
 
@@ -32,17 +36,18 @@ export function Security() {
     <section id="security" className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
           className="text-center"
         >
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Security you can trust
+            Control starts with clarity
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Built with the same security standards as the world&apos;s leading tech companies.
+            Understand where documents go and choose the deployment model that
+            fits your needs.
           </p>
         </motion.div>
 
@@ -50,7 +55,7 @@ export function Security() {
           {securityItems.map((item, index) => (
             <motion.div
               key={item.title}
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}

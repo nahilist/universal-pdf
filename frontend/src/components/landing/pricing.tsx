@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -13,47 +13,47 @@ import {
 
 const plans = [
   {
-    name: "Starter",
-    price: "$9",
-    description: "Perfect for occasional translations",
+    name: "Local",
+    price: "$0",
+    description: "Run the current project on your machine",
     features: [
-      "5 documents / month",
-      "50 pages / document",
-      "25 languages",
-      "Standard quality",
-      "Email support",
+      "Unlimited local jobs",
+      "Up to 200 pages",
+      "14 languages",
+      "Open source codebase",
+      "Community setup",
     ],
     cta: "Start translating",
     popular: false,
   },
   {
-    name: "Pro",
-    price: "$29",
-    description: "For professionals and teams",
+    name: "Self-hosted",
+    price: "Your infra",
+    description: "Deploy and configure it for your workflow",
     features: [
-      "50 documents / month",
-      "200 pages / document",
-      "100+ languages",
-      "Premium quality",
-      "Priority support",
-      "API access",
+      "FastAPI endpoints",
+      "Configurable provider",
+      "Environment-based setup",
+      "Frontend workspace",
+      "Full source control",
+      "API documentation",
     ],
-    cta: "Start free trial",
+    cta: "Open workspace",
     popular: true,
   },
   {
-    name: "Enterprise",
-    price: "Custom",
-    description: "For organizations at scale",
+    name: "Managed",
+    price: "Planned",
+    description: "Hosted collaboration features are not available yet",
     features: [
-      "Unlimited documents",
-      "Unlimited pages",
-      "All languages",
-      "Custom models",
-      "Dedicated support",
-      "SLA guarantee",
+      "Persistent job storage",
+      "Team workspaces",
+      "Authentication",
+      "OCR processing",
+      "Operational monitoring",
+      "Support options",
     ],
-    cta: "Contact sales",
+    cta: "Coming soon",
     popular: false,
   },
 ];
@@ -63,17 +63,18 @@ export function Pricing() {
     <section id="pricing" className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
           className="text-center"
         >
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Simple, transparent pricing
+            Choose how you run it
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Start free. Scale when you need to.
+            Use the local project today or adapt the open architecture for your
+            environment.
           </p>
         </motion.div>
 
@@ -81,7 +82,7 @@ export function Pricing() {
           {plans.map((plan, index) => (
             <motion.div
               key={plan.name}
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -105,8 +106,8 @@ export function Pricing() {
                   <CardTitle className="text-xl">{plan.name}</CardTitle>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold">{plan.price}</span>
-                    {plan.price !== "Custom" && (
-                      <span className="text-muted-foreground">/month</span>
+                    {plan.price === "$0" && (
+                      <span className="text-muted-foreground">/forever</span>
                     )}
                   </div>
                   <CardDescription className="mt-2">
@@ -124,13 +125,20 @@ export function Pricing() {
                       </li>
                     ))}
                   </ul>
-                  <Button
-                    variant={plan.popular ? "brand" : "outline"}
-                    className="mt-8 w-full"
-                  >
-                    {plan.cta}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  {plan.name === "Managed" ? (
+                    <Button variant="outline" className="mt-8 w-full" disabled>
+                      {plan.cta}
+                    </Button>
+                  ) : (
+                    <LinkButton
+                      href="/translate"
+                      variant={plan.popular ? "brand" : "outline"}
+                      className="mt-8 w-full"
+                    >
+                      {plan.cta}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </LinkButton>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

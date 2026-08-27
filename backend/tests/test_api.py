@@ -1,7 +1,6 @@
 import io
 import time
 from fastapi.testclient import TestClient
-import pytest
 import pymupdf
 from unittest.mock import patch
 from app.main import app
@@ -93,14 +92,19 @@ def test_v1_job_lifecycle() -> None:
 
 def test_v1_file_upload() -> None:
     # Valid PDF file upload
-    fake_pdf = io.BytesIO(b"%PDF-1.4 mock content")
+    document = pymupdf.open()
+    document.new_page()
+    document.new_page()
+    fake_pdf = io.BytesIO(document.tobytes())
+    document.close()
     response = client.post(
         "/api/v1/files/upload",
-        files={"file": ("test.pdf", fake_pdf, "application/pdf")},
+        files={"file": ("test.PDF", fake_pdf, "application/pdf")},
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["filename"] == "test.pdf"
+    assert data["filename"] == "test.PDF"
+    assert data["page_count"] == 2
     assert "file_id" in data
 
     # Invalid file extension upload
@@ -111,3 +115,11 @@ def test_v1_file_upload() -> None:
     )
     assert invalid_res.status_code == 400
     assert invalid_res.json()["error_code"] == "PDF_INVALID"
+
+    # A PDF extension alone must not allow arbitrary or corrupt content.
+    corrupt_res = client.post(
+        "/api/v1/files/upload",
+        files={"file": ("broken.pdf", io.BytesIO(b"not really a pdf"), "application/pdf")},
+    )
+    assert corrupt_res.status_code == 400
+    assert corrupt_res.json()["error_code"] == "PDF_INVALID"

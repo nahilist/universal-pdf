@@ -2,44 +2,50 @@
 
 import { motion } from "framer-motion";
 import { Zap, Shield, Layers, Globe, Lock, Sparkles } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const features = [
   {
     icon: Shield,
-    title: "Layout Preservation",
+    title: "PDF-aware output",
     description:
-      "Every table, image, and formatting detail stays intact. Your document looks identical, just in a new language.",
+      "Creates a new PDF at the original page dimensions and places translated content into a readable document.",
   },
   {
     icon: Zap,
-    title: "Lightning Fast",
+    title: "Background processing",
     description:
-      "Powered by distributed workers and optimized pipelines. Translate 100-page documents in minutes.",
+      "Jobs run outside the request cycle, so the interface can show progress while each page is processed.",
   },
   {
     icon: Globe,
-    title: "100+ Languages",
+    title: "14 languages",
     description:
-      "From Hindi to Japanese, Arabic to Spanish. Automatic source language detection included.",
+      "Translate between popular languages including Hindi, Spanish, French, German, Chinese, Japanese, and Arabic.",
   },
   {
     icon: Layers,
-    title: "Smart OCR",
+    title: "Strict PDF validation",
     description:
-      "Automatically detects scanned PDFs and extracts text with state-of-the-art OCR before translating.",
+      "Corrupt files, invalid formats, oversize uploads, and documents above the page limit are rejected early.",
   },
   {
     icon: Lock,
-    title: "Enterprise Security",
+    title: "Self-hostable",
     description:
-      "End-to-end encryption, SOC 2 compliant infrastructure. Your documents never leave our secure environment.",
+      "Run the application and its API in your own environment and choose how the translation provider is configured.",
   },
   {
     icon: Sparkles,
-    title: "AI-Powered",
+    title: "Clear job states",
     description:
-      "Context-aware translation that understands document structure, technical terminology, and nuance.",
+      "Follow upload, processing, translation, completion, and failure states from one focused workspace.",
   },
 ];
 
@@ -48,7 +54,7 @@ export function Features() {
     <section id="features" className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
@@ -66,12 +72,15 @@ export function Features() {
           {features.map((feature, index) => (
             <motion.div
               key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
             >
-              <Card variant="surface" className="h-full transition-colors hover:border-brand/30">
+              <Card
+                variant="surface"
+                className="h-full transition-colors hover:border-brand/30"
+              >
                 <CardHeader>
                   <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
                     <feature.icon className="h-5 w-5" />

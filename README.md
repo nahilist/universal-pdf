@@ -154,8 +154,8 @@ universalpdf/
 │   │   ├── storage/             # Local + S3 storage backends
 │   │   ├── workers/             # Celery workers
 │   │   └── main.py              # FastAPI app entrypoint
-│   ├── requirements.txt
-│   ├── requirements-dev.txt
+│   ├── pyproject.toml
+│   ├── uv.lock
 │   └── Dockerfile
 │
 ├── worker/                      # Celery worker entrypoints
@@ -250,8 +250,8 @@ npm run dev
 **Backend:**
 ```bash
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+uv sync
+uv run uvicorn app.main:app --reload
 ```
 
 ---
@@ -270,7 +270,7 @@ npm test          # Jest
 ### Backend
 ```bash
 cd backend
-pytest            # Unit + integration tests
+uv run pytest     # Unit + integration tests
 ```
 
 ---
@@ -287,8 +287,8 @@ pytest            # Unit + integration tests
 | `npm run build` | Frontend production build |
 | `npm run lint` | Frontend linting |
 | `npm run typecheck` | Frontend type checking |
-| `uvicorn app.main:app --reload` | Backend dev server |
-| `pytest` | Run backend tests |
+| `uv run uvicorn app.main:app --reload` | Backend dev server |
+| `uv run pytest` | Run backend tests |
 
 ### Design System
 
@@ -401,7 +401,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](./docs/CONTRIBUTING.md)
 
 ```bash
 # Fork, then clone
-git clone https://github.com/YOUR_USERNAME/linguaflow.git
+git clone https://github.com/himanshux64/linguaflow.git
 cd linguaflow
 
 # Install dependencies

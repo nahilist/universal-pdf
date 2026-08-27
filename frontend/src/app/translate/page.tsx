@@ -1,13 +1,40 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Upload, FileText, X, Languages, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  FileOutput,
+  FileText,
+  Languages,
+  Loader2,
+  LockKeyhole,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 
-type UploadState = "idle" | "dragging" | "uploading" | "processing" | "success" | "error";
+type UploadState =
+  "idle" | "dragging" | "uploading" | "processing" | "success" | "error";
+const languages = [
+  ["auto", "Auto detect"],
+  ["en", "English"],
+  ["hi", "Hindi"],
+  ["es", "Spanish"],
+  ["fr", "French"],
+  ["de", "German"],
+  ["pt", "Portuguese"],
+  ["zh", "Chinese"],
+  ["ja", "Japanese"],
+  ["ar", "Arabic"],
+] as const;
 
 export default function TranslatePage() {
   const [state, setState] = useState<UploadState>("idle");
@@ -15,88 +42,75 @@ export default function TranslatePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState("Please upload a valid PDF file.");
-
+  const [errorMessage, setErrorMessage] = useState(
+    "Please upload a valid PDF file.",
+  );
+  const [sourceLanguage, setSourceLanguage] = useState("auto");
+  const [targetLanguage, setTargetLanguage] = useState("hi");
+  const activeRequest = useRef<AbortController | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setState("dragging");
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (state === "dragging") setState("idle");
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFile(files[0]);
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFile(files[0]);
-    }
-  };
-
   const handleFile = async (file: File) => {
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setErrorMessage("Please upload a valid PDF file.");
+    if (
+      file.type !== "application/pdf" &&
+      !file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      setErrorMessage("Please choose a PDF document.");
       setState("error");
       return;
     }
-
     if (file.size > 50 * 1024 * 1024) {
       setErrorMessage("The PDF must be smaller than 50 MB.");
       setState("error");
       return;
     }
-
+    if (sourceLanguage === targetLanguage) {
+      setErrorMessage("Source and target languages must be different.");
+      setState("error");
+      return;
+    }
     setFileName(file.name);
-    setFileSize(`${(file.size / (1024 * 1024)).toFixed(1)} MB`);
+    setFileSize(`${(file.size / 1048576).toFixed(1)} MB`);
     setState("uploading");
-    setProgress(20);
+    setProgress(15);
     setDownloadUrl(null);
-
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const signal = () =>
+      AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
     try {
       const formData = new FormData();
       formData.append("file", file);
-
       const uploadResponse = await fetch(`${apiUrl}/api/v1/files/upload`, {
         method: "POST",
         body: formData,
-        signal: AbortSignal.timeout(15_000),
+        signal: signal(),
       });
       if (!uploadResponse.ok) {
         const body = await uploadResponse.json().catch(() => null);
         throw new Error(body?.message ?? "The PDF upload failed.");
       }
       const upload = (await uploadResponse.json()) as { file_id: string };
-
       setProgress(25);
       setState("processing");
-
       const jobResponse = await fetch(`${apiUrl}/api/v1/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(15_000),
+        signal: signal(),
         body: JSON.stringify({
           file_id: upload.file_id,
           filename: file.name,
-          source_language: "auto",
-          target_language: "hi",
+          source_language: sourceLanguage,
+          target_language: targetLanguage,
         }),
       });
       if (!jobResponse.ok) {
         const body = await jobResponse.json().catch(() => null);
-        throw new Error(body?.message ?? "Could not create the translation job.");
+        throw new Error(
+          body?.message ?? "Could not create the translation job.",
+        );
       }
-
       let job = (await jobResponse.json()) as {
         id: string;
         status: string;
@@ -104,228 +118,431 @@ export default function TranslatePage() {
         download_url?: string;
         error_message?: string;
       };
-
       while (job.status !== "COMPLETED") {
-        if (job.status === "FAILED") {
+        if (job.status === "FAILED")
           throw new Error(job.error_message ?? "Translation failed.");
-        }
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        const statusResponse = await fetch(`${apiUrl}/api/v1/jobs/${job.id}`, {
-          signal: AbortSignal.timeout(15_000),
+        const response = await fetch(`${apiUrl}/api/v1/jobs/${job.id}`, {
+          signal: signal(),
           cache: "no-store",
         });
-        if (!statusResponse.ok) throw new Error("Could not read translation progress.");
-        job = await statusResponse.json();
+        if (!response.ok)
+          throw new Error("Could not read translation progress.");
+        job = await response.json();
         setProgress((current) => Math.max(current, job.progress));
       }
-
-      if (!job.download_url) throw new Error("The server did not provide a download link.");
-
+      if (!job.download_url)
+        throw new Error("The server did not provide a download link.");
       setProgress(100);
       setDownloadUrl(`${apiUrl}${job.download_url}`);
       setState("success");
     } catch (error) {
-      const message =
+      if (controller.signal.aborted) return;
+      setErrorMessage(
         error instanceof DOMException && error.name === "TimeoutError"
-          ? "The server took too long to respond. Restart the backend and try a smaller PDF."
+          ? "The server took too long to respond. Please try a smaller PDF."
           : error instanceof Error
             ? error.message
-            : "Translation failed.";
-      setErrorMessage(message);
+            : "Translation failed.",
+      );
       setState("error");
+    } finally {
+      if (activeRequest.current === controller) activeRequest.current = null;
     }
   };
 
   const reset = () => {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
     setState("idle");
     setProgress(0);
     setFileName(null);
     setFileSize(null);
     setDownloadUrl(null);
   };
+  const busy = state === "uploading" || state === "processing";
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 pb-16">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Translate your document
+    <div className="relative min-h-screen overflow-hidden bg-background">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_5%,hsl(263_70%_50%/0.13),transparent_28%),radial-gradient(circle_at_85%_75%,hsl(220_90%_55%/0.08),transparent_30%)]" />
+      <header className="relative z-10 border-b border-white/[0.06] bg-background/75 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <a href="/" className="flex items-center gap-2.5 font-semibold">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-sm shadow-lg shadow-brand/20">
+              L
+            </span>
+            LinguaFlow
+          </a>
+          <a
+            href="/"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back to home</span>
+          </a>
+        </div>
+      </header>
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <div className="mb-10 max-w-2xl">
+          <div className="mb-4 inline-flex rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-xs font-medium text-brand">
+            AI document translation
+          </div>
+          <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+            Translate your PDF without losing its structure.
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground">
-            Upload a PDF and we will preserve its structure while translating.
+          <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
+            Choose your languages, upload a document, and receive a translated
+            PDF ready to download.
           </p>
         </div>
-
-        <div className="mx-auto max-w-2xl">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">English</span>
-              <span className="text-xs text-muted-foreground">(auto-detected)</span>
-            </div>
-            <Languages className="h-4 w-4 text-muted-foreground" />
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Hindi</span>
-            </div>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {state === "idle" || state === "dragging" ? (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`relative rounded-2xl border-2 border-dashed p-12 text-center transition-colors ${
-                  state === "dragging"
-                    ? "border-brand bg-brand/5"
-                    : "border-border hover:border-brand/50 hover:bg-surface/50"
-                }`}
-              >
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileInput}
-                  className="absolute inset-0 cursor-pointer opacity-0"
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <section className="overflow-hidden rounded-3xl border border-white/[0.08] bg-surface/70 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="border-b border-white/[0.07] p-5 sm:p-7">
+              <SectionTitle
+                step="Step 1"
+                title="Choose languages"
+                icon={<Languages className="h-5 w-5 text-muted-foreground" />}
+              />
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+                <LanguageSelect
+                  label="Translate from"
+                  value={sourceLanguage}
+                  onChange={setSourceLanguage}
+                  includeAuto
+                  disabled={busy}
                 />
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                    <Upload className="h-8 w-8" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-medium">
-                      Drop PDF here
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      or browse files
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    PDF up to 200 pages, max 50MB
-                  </p>
-                </div>
-              </motion.div>
-            ) : null}
-
-            {(state === "uploading" || state === "processing") && (
-              <motion.div
-                key="uploading"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="rounded-2xl border border-border/50 bg-surface/30 p-8"
-              >
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand/10 text-brand">
-                    <FileText className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{fileName}</p>
-                    <p className="text-sm text-muted-foreground">{fileSize}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={reset}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {state === "uploading" ? "Uploading..." : "Processing..."}
-                    </span>
-                    <span className="font-medium">{progress}%</span>
-                  </div>
-                  <Progress value={progress} />
-                </div>
-
-                {state === "processing" && (
-                  <div className="mt-6 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-2 w-2 rounded-full bg-emerald-400" />
-                      <span className="text-sm text-muted-foreground">
-                        PDF uploaded
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Loader2 className="h-4 w-4 animate-spin text-brand" />
-                      <span className="text-sm text-muted-foreground">
-                        Translating document page by page...
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {state === "success" && (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="rounded-2xl border border-border/50 bg-surface/30 p-8 text-center"
-              >
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
-                  <FileText className="h-8 w-8" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold">Translation complete</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Your translated PDF is ready for download.
-                </p>
-                <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <Button
-                    variant="brand"
-                    onClick={() => downloadUrl && window.open(downloadUrl, "_blank")}
-                    disabled={!downloadUrl}
+                <button
+                  type="button"
+                  aria-label="Swap languages"
+                  disabled={busy || sourceLanguage === "auto"}
+                  onClick={() => {
+                    setSourceLanguage(targetLanguage);
+                    setTargetLanguage(sourceLanguage);
+                  }}
+                  className="grid h-11 w-full place-items-center rounded-xl border border-white/10 bg-white/[0.03] text-muted-foreground hover:border-brand/40 hover:text-foreground disabled:opacity-40 sm:w-11"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+                <LanguageSelect
+                  label="Translate to"
+                  value={targetLanguage}
+                  onChange={setTargetLanguage}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+            <div className="p-5 sm:p-7">
+              <SectionTitle step="Step 2" title="Upload your document" />
+              <AnimatePresence mode="wait">
+                {(state === "idle" || state === "dragging") && (
+                  <motion.label
+                    key="dropzone"
+                    initial={false}
+                    animate={{ opacity: 1 }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setState("dragging");
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setState("idle");
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setState("idle");
+                      if (e.dataTransfer.files[0])
+                        void handleFile(e.dataTransfer.files[0]);
+                    }}
+                    className={`group flex min-h-72 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-12 text-center transition-all ${state === "dragging" ? "border-brand bg-brand/10" : "border-white/15 bg-white/[0.02] hover:border-brand/50 hover:bg-brand/[0.04]"}`}
                   >
-                    Download PDF
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" onClick={reset}>
-                    Translate another
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {state === "error" && (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="rounded-2xl border border-border/50 bg-surface/30 p-8 text-center"
-              >
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                  <X className="h-8 w-8" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold">Upload failed</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {errorMessage}
-                </p>
-                <Button variant="outline" className="mt-6" onClick={reset}>
-                  Try again
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="success">Secure</Badge>
-              End-to-end encrypted
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="sr-only"
+                      onChange={(e) =>
+                        e.target.files?.[0] &&
+                        void handleFile(e.target.files[0])
+                      }
+                    />
+                    <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl border border-brand/20 bg-brand/10 text-brand shadow-lg shadow-brand/10 transition-transform group-hover:-translate-y-1">
+                      <UploadCloud className="h-8 w-8" />
+                    </div>
+                    <p className="text-lg font-semibold">Drop PDF here</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      or{" "}
+                      <span className="font-medium text-brand">
+                        browse from your computer
+                      </span>
+                    </p>
+                    <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
+                      <Pill>PDF only</Pill>
+                      <Pill>Up to 50 MB</Pill>
+                      <Pill>Maximum 200 pages</Pill>
+                    </div>
+                  </motion.label>
+                )}
+                {busy && (
+                  <ProgressState
+                    fileName={fileName}
+                    fileSize={fileSize}
+                    progress={progress}
+                    state={state}
+                    reset={reset}
+                  />
+                )}
+                {state === "success" && (
+                  <ResultState
+                    success
+                    message="The document has been processed successfully. Download it now or translate another file."
+                    title="Your translated PDF is ready"
+                    primary="Download PDF"
+                    primaryAction={() =>
+                      downloadUrl && window.open(downloadUrl, "_blank")
+                    }
+                    secondaryAction={reset}
+                  />
+                )}
+                {state === "error" && (
+                  <ResultState
+                    message={errorMessage}
+                    title="We couldn't process that file"
+                    primary="Try again"
+                    primaryAction={reset}
+                  />
+                )}
+              </AnimatePresence>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="success">Fast</Badge>
-              Minutes, not hours
+          </section>
+          <aside className="space-y-5 lg:sticky lg:top-6">
+            <div className="rounded-2xl border border-white/[0.08] bg-surface/60 p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-5 w-5 text-brand" />
+                <h2 className="font-semibold">What happens next</h2>
+              </div>
+              <ol className="mt-5 space-y-5">
+                <Info icon={FileText} title="Document analysis">
+                  We inspect readable text and page structure.
+                </Info>
+                <Info icon={Languages} title="Contextual translation">
+                  Content is translated page by page.
+                </Info>
+                <Info icon={FileOutput} title="PDF reconstruction">
+                  A clean translated PDF is generated.
+                </Info>
+              </ol>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="success">Accurate</Badge>
-              Layout preserved
+            <div className="rounded-2xl border border-white/[0.08] bg-surface/60 p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                <h2 className="font-semibold">Private by design</h2>
+              </div>
+              <p className="mt-4 flex gap-2 text-sm text-muted-foreground">
+                <LockKeyhole className="h-4 w-4 shrink-0" />
+                Uploaded directly to your configured API.
+              </p>
             </div>
-          </div>
+            <p className="px-2 text-xs leading-5 text-muted-foreground">
+              Scanned PDFs without selectable text require OCR, which is not yet
+              available.
+            </p>
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
+  );
+}
+
+function LanguageSelect({
+  label,
+  value,
+  onChange,
+  includeAuto = false,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  includeAuto?: boolean;
+  disabled?: boolean;
+}) {
+  const options = includeAuto
+    ? languages
+    : languages.filter(([code]) => code !== "auto");
+  return (
+    <label>
+      <span className="mb-2 block text-xs font-medium text-muted-foreground">
+        {label}
+      </span>
+      <span className="relative block">
+        <select
+          aria-label={label}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-background/70 px-4 pr-10 text-sm font-medium outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-50"
+        >
+          {options.map(([code, name]) => (
+            <option key={code} value={code}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      </span>
+    </label>
+  );
+}
+function SectionTitle({
+  step,
+  title,
+  icon,
+}: {
+  step: string;
+  title: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-5 flex items-center justify-between">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-brand">
+          {step}
+        </p>
+        <h2 className="mt-1 text-lg font-semibold">{title}</h2>
+      </div>
+      {icon}
+    </div>
+  );
+}
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-white/10 px-3 py-1.5">
+      {children}
+    </span>
+  );
+}
+function ProgressState({
+  fileName,
+  fileSize,
+  progress,
+  state,
+  reset,
+}: {
+  fileName: string | null;
+  fileSize: string | null;
+  progress: number;
+  state: UploadState;
+  reset: () => void;
+}) {
+  return (
+    <motion.div
+      key="progress"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 sm:p-8"
+    >
+      <div className="flex gap-4">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+          <FileText className="h-6 w-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{fileName}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{fileSize}</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Cancel translation"
+          onClick={reset}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="mt-8 flex justify-between text-sm">
+        <span className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-brand" />
+          {state === "uploading"
+            ? "Uploading securely"
+            : "Translating your document"}
+        </span>
+        <b>{progress}%</b>
+      </div>
+      <Progress value={progress} className="mt-3 h-2.5 bg-white/[0.06]" />
+    </motion.div>
+  );
+}
+function ResultState({
+  success = false,
+  title,
+  message,
+  primary,
+  primaryAction,
+  secondaryAction,
+}: {
+  success?: boolean;
+  title: string;
+  message: string;
+  primary: string;
+  primaryAction: () => void;
+  secondaryAction?: () => void;
+}) {
+  return (
+    <motion.div
+      key={success ? "success" : "error"}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`rounded-2xl border p-7 text-center sm:p-10 ${success ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-destructive/20 bg-destructive/[0.04]"}`}
+    >
+      <div
+        className={`mx-auto grid h-16 w-16 place-items-center rounded-2xl ${success ? "bg-emerald-500/10 text-emerald-400" : "bg-destructive/10 text-destructive"}`}
+      >
+        {success ? (
+          <CheckCircle2 className="h-8 w-8" />
+        ) : (
+          <X className="h-8 w-8" />
+        )}
+      </div>
+      <h3 className="mt-5 text-xl font-semibold">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+        {message}
+      </p>
+      <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+        <Button
+          variant={success ? "brand" : "outline"}
+          size="lg"
+          onClick={primaryAction}
+        >
+          {primary}
+          {success && <ArrowRight className="ml-2 h-4 w-4" />}
+        </Button>
+        {secondaryAction && (
+          <Button variant="outline" size="lg" onClick={secondaryAction}>
+            Translate another
+          </Button>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+function Info({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: typeof FileText;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/[0.04] text-brand">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span>
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+          {children}
+        </span>
+      </span>
+    </li>
   );
 }

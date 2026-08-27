@@ -6,6 +6,8 @@ import { Features } from "@/components/landing/features";
 import { Security } from "@/components/landing/security";
 import { Pricing } from "@/components/landing/pricing";
 import { Footer } from "@/components/landing/footer";
+import { UseCases } from "@/components/landing/use-cases";
+import { FAQ } from "@/components/landing/faq";
 import { BackgroundEffects } from "@/components/landing/background-effects";
 
 export default function Home() {
@@ -18,8 +20,10 @@ export default function Home() {
         <Product />
         <HowItWorks />
         <Features />
+        <UseCases />
         <Security />
         <Pricing />
+        <FAQ />
       </main>
       <Footer />
     </>

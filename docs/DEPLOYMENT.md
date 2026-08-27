@@ -6,7 +6,7 @@
 - PostgreSQL 16+
 - Redis 7+
 - Node.js 20+ (for frontend)
-- Python 3.13+ (for backend)
+- Python 3.12+ and uv (for backend)
 
 ## Environment
 

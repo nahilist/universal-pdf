@@ -30,7 +30,7 @@ docker compose up --build
 cd frontend && npm test
 
 # Backend
-cd backend && pytest
+cd backend && uv run pytest
 ```
 
 ## Pull Requests

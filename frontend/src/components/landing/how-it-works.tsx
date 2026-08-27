@@ -2,32 +2,32 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 
 const steps = [
   {
     number: "01",
     title: "Upload",
     description:
-      "Drag and drop your PDF. We accept files up to 200 pages with automatic MIME validation.",
+      "Drop in a valid PDF up to 50 MB and 200 pages. Corrupt files are rejected before processing.",
   },
   {
     number: "02",
     title: "Detect",
     description:
-      "Our engine analyzes document structure, detects language, and identifies scanned pages requiring OCR.",
+      "The engine reads selectable text and automatically detects the source language when requested.",
   },
   {
     number: "03",
     title: "Translate",
     description:
-      "AI translates content chunk-by-chunk, preserving tables, images, and formatting contextually.",
+      "Long page content is split into safe chunks and translated in the background with live progress.",
   },
   {
     number: "04",
     title: "Download",
     description:
-      "Receive your translated PDF with pixel-perfect layout preservation. Ready to share immediately.",
+      "Receive a reconstructed PDF at the original page size, ready to review and download.",
   },
 ];
 
@@ -36,7 +36,7 @@ export function HowItWorks() {
     <section id="how-it-works" className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
@@ -54,7 +54,7 @@ export function HowItWorks() {
           {steps.map((step, index) => (
             <motion.div
               key={step.number}
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.15 }}
@@ -77,21 +77,21 @@ export function HowItWorks() {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mt-16 text-center"
         >
-          <Button
+          <LinkButton
+            href="/translate"
             variant="brand"
             size="lg"
             className="group"
-            onClick={() => window.location.assign("/translate")}
           >
             Get started for free
             <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </Button>
+          </LinkButton>
         </motion.div>
       </div>
     </section>

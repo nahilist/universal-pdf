@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, FileCheck, Languages, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 
 export function Product() {
   return (
@@ -10,7 +10,7 @@ export function Product() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={false}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
@@ -19,8 +19,9 @@ export function Product() {
               Translate documents, not just text
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Most translation tools break your documents. Tables become unreadable,
-              images get misaligned, and formatting vanishes. LinguaFlow is different.
+              Copying text out of a PDF is slow and loses the document context.
+              LinguaFlow turns the complete text layer into a downloadable PDF
+              workflow.
             </p>
             <div className="mt-8 space-y-4">
               <div className="flex gap-4">
@@ -28,9 +29,10 @@ export function Product() {
                   <FileCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Structure-aware</h3>
+                  <h3 className="font-semibold">Page-aware</h3>
                   <p className="text-sm text-muted-foreground">
-                    Analyzes PDF structure before translating to preserve hierarchy.
+                    Reads selectable text page by page and keeps the original
+                    page dimensions.
                   </p>
                 </div>
               </div>
@@ -39,9 +41,10 @@ export function Product() {
                   <Languages className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Contextual translation</h3>
+                  <h3 className="font-semibold">Automatic detection</h3>
                   <p className="text-sm text-muted-foreground">
-                    Understands tables, lists, and paragraphs as semantic units.
+                    Detects the source language or lets you choose it
+                    explicitly.
                   </p>
                 </div>
               </div>
@@ -50,25 +53,26 @@ export function Product() {
                   <Zap className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Pixel-perfect output</h3>
+                  <h3 className="font-semibold">Downloadable output</h3>
                   <p className="text-sm text-muted-foreground">
-                    Rebuilds the PDF with translated text fitting original boundaries.
+                    Reconstructs translated pages into a compact PDF ready to
+                    download.
                   </p>
                 </div>
               </div>
             </div>
-            <Button
+            <LinkButton
+              href="/translate"
               variant="brand"
               className="mt-8 group"
-              onClick={() => window.location.assign("/translate")}
             >
               Try it now
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Button>
+            </LinkButton>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={false}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}

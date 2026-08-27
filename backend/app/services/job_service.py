@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 import uuid
-from typing import Dict, List, Optional
+from typing import Dict
 
 from app.core.exceptions import JobNotFoundError
 from app.schemas.job import JobCreate, JobListResponse, JobResponse, JobStatus
@@ -17,8 +17,6 @@ class JobService:
 
     def create_job(self, data: JobCreate) -> JobResponse:
         from app.api.v1.files import uploaded_files
-        from app.translation.engine import translation_engine
-
         job_id = str(uuid.uuid4())
         content = uploaded_files.get(data.file_id) if data.file_id else None
         if content is None:
@@ -53,6 +51,9 @@ class JobService:
                 self._jobs[job_id].progress = 10
             translated = translation_engine.translate_pdf(content, source, target, update_progress)
             with self._lock:
+                # The job may have been cancelled while translation was running.
+                if job_id not in self._jobs:
+                    return
                 self._translated_files[job_id] = translated
                 job = self._jobs[job_id]
                 job.status = JobStatus.COMPLETED
@@ -80,15 +81,17 @@ class JobService:
             return self._jobs[job_id]
 
     def list_jobs(self) -> JobListResponse:
-        jobs = list(self._jobs.values())
-        return JobListResponse(jobs=jobs, total=len(jobs))
+        with self._lock:
+            jobs = list(self._jobs.values())
+            return JobListResponse(jobs=jobs, total=len(jobs))
 
     def cancel_job(self, job_id: str) -> bool:
-        if job_id not in self._jobs:
-            raise JobNotFoundError(f"Job with ID {job_id} not found.")
-        del self._jobs[job_id]
-        self._translated_files.pop(job_id, None)
-        return True
+        with self._lock:
+            if job_id not in self._jobs:
+                raise JobNotFoundError(f"Job with ID {job_id} not found.")
+            del self._jobs[job_id]
+            self._translated_files.pop(job_id, None)
+            return True
 
 
 job_service = JobService()

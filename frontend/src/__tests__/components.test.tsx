@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -9,7 +9,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 describe("UI Components", () => {
   it("renders Button component with label", () => {
     render(<Button>Click me</Button>);
-    expect(screen.getByRole("button", { name: "Click me" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Click me" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders navigation actions as real links", () => {
+    render(<LinkButton href="/translate">Translate</LinkButton>);
+    expect(screen.getByRole("link", { name: "Translate" })).toHaveAttribute(
+      "href",
+      "/translate",
+    );
   });
 
   it("renders Badge component with content", () => {
@@ -24,7 +34,7 @@ describe("UI Components", () => {
           <CardTitle>Test Title</CardTitle>
         </CardHeader>
         <CardContent>Test Content</CardContent>
-      </Card>
+      </Card>,
     );
     expect(screen.getByText("Test Title")).toBeInTheDocument();
     expect(screen.getByText("Test Content")).toBeInTheDocument();

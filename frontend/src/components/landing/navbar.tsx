@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 
 export function Navbar() {
   return (
@@ -35,32 +35,29 @@ export function Navbar() {
               Features
             </a>
             <a
-              href="#security"
+              href="#use-cases"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              Security
+              Use cases
             </a>
             <a
-              href="#pricing"
+              href="#faq"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              Pricing
+              FAQ
             </a>
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm">
-              Log in
-            </Button>
-            <Button
+            <LinkButton
+              href="/translate"
               variant="brand"
               size="sm"
               className="hidden sm:inline-flex"
-              onClick={() => window.location.assign("/translate")}
             >
               Start translating
               <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            </LinkButton>
           </div>
         </div>
       </div>
