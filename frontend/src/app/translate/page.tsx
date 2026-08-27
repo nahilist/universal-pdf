@@ -48,7 +48,9 @@ export default function TranslatePage() {
   const [sourceLanguage, setSourceLanguage] = useState("auto");
   const [targetLanguage, setTargetLanguage] = useState("hi");
   const activeRequest = useRef<AbortController | null>(null);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/, "");
 
   const handleFile = async (file: File) => {
     if (
@@ -88,8 +90,9 @@ export default function TranslatePage() {
         signal: signal(),
       });
       if (!uploadResponse.ok) {
-        const body = await uploadResponse.json().catch(() => null);
-        throw new Error(body?.message ?? "The PDF upload failed.");
+        throw new Error(
+          await getApiError(uploadResponse, "The PDF upload failed."),
+        );
       }
       const upload = (await uploadResponse.json()) as { file_id: string };
       setProgress(25);
@@ -106,9 +109,11 @@ export default function TranslatePage() {
         }),
       });
       if (!jobResponse.ok) {
-        const body = await jobResponse.json().catch(() => null);
         throw new Error(
-          body?.message ?? "Could not create the translation job.",
+          await getApiError(
+            jobResponse,
+            "Could not create the translation job.",
+          ),
         );
       }
       let job = (await jobResponse.json()) as {
@@ -127,7 +132,9 @@ export default function TranslatePage() {
           cache: "no-store",
         });
         if (!response.ok)
-          throw new Error("Could not read translation progress.");
+          throw new Error(
+            await getApiError(response, "Could not read translation progress."),
+          );
         job = await response.json();
         setProgress((current) => Math.max(current, job.progress));
       }
@@ -350,6 +357,21 @@ export default function TranslatePage() {
       </main>
     </div>
   );
+}
+
+async function getApiError(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as {
+    message?: string;
+    detail?: string | Array<{ msg?: string }>;
+  } | null;
+  const detail = Array.isArray(body?.detail)
+    ? body.detail
+        .map((item) => item.msg)
+        .filter(Boolean)
+        .join(", ")
+    : body?.detail;
+
+  return body?.message ?? detail ?? `${fallback} (HTTP ${response.status})`;
 }
 
 function LanguageSelect({
