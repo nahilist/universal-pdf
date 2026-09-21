@@ -79,15 +79,13 @@ export default function TranslatePage() {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
-    const signal = () =>
-      AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
     try {
       const formData = new FormData();
       formData.append("file", file);
       const uploadResponse = await fetch(`${apiUrl}/api/v1/files/upload`, {
         method: "POST",
         body: formData,
-        signal: signal(),
+        signal: createRequestSignal(controller.signal, 120_000),
       });
       if (!uploadResponse.ok) {
         throw new Error(
@@ -100,7 +98,7 @@ export default function TranslatePage() {
       const jobResponse = await fetch(`${apiUrl}/api/v1/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: signal(),
+        signal: createRequestSignal(controller.signal, 30_000),
         body: JSON.stringify({
           file_id: upload.file_id,
           filename: file.name,
@@ -123,12 +121,17 @@ export default function TranslatePage() {
         download_url?: string;
         error_message?: string;
       };
+      let pollCount = 0;
       while (job.status !== "COMPLETED") {
         if (job.status === "FAILED")
           throw new Error(job.error_message ?? "Translation failed.");
+        pollCount += 1;
+        if (pollCount > 300) {
+          throw new Error("Translation took too long to complete. Please try again.");
+        }
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const response = await fetch(`${apiUrl}/api/v1/jobs/${job.id}`, {
-          signal: signal(),
+          signal: createRequestSignal(controller.signal, 15_000),
           cache: "no-store",
         });
         if (!response.ok)
@@ -359,6 +362,37 @@ export default function TranslatePage() {
   );
 }
 
+function createRequestSignal(
+  controllerSignal: AbortSignal,
+  timeoutMs: number,
+): AbortSignal {
+  if (
+    typeof AbortSignal !== "undefined" &&
+    typeof AbortSignal.any === "function" &&
+    typeof AbortSignal.timeout === "function"
+  ) {
+    return AbortSignal.any([controllerSignal, AbortSignal.timeout(timeoutMs)]);
+  }
+
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => {
+    timeoutController.abort(
+      new DOMException("The operation timed out.", "TimeoutError"),
+    );
+  }, timeoutMs);
+
+  controllerSignal.addEventListener(
+    "abort",
+    () => {
+      clearTimeout(timer);
+      timeoutController.abort(controllerSignal.reason);
+    },
+    { once: true },
+  );
+
+  return timeoutController.signal;
+}
+
 async function getApiError(response: Response, fallback: string) {
   const body = (await response.json().catch(() => null)) as {
     message?: string;
@@ -371,7 +405,13 @@ async function getApiError(response: Response, fallback: string) {
         .join(", ")
     : body?.detail;
 
-  return body?.message ?? detail ?? `${fallback} (HTTP ${response.status})`;
+  if (body?.message) return body.message;
+  if (detail) return detail;
+
+  if (response.status === 404) {
+    return "Cannot reach the translation API endpoint (HTTP 404). Please ensure the backend server is running.";
+  }
+  return `${fallback} (HTTP ${response.status})`;
 }
 
 function LanguageSelect({

@@ -3,7 +3,7 @@ from fastapi import APIRouter, File, UploadFile
 import pymupdf
 
 from app.core.config import settings
-from app.core.exceptions import PDFInvalidError, PDFTooLargeError
+from app.core.exceptions import PDFInvalidError, PDFPasswordProtectedError, PDFTooLargeError
 from app.schemas.job import FileUploadResponse
 
 router = APIRouter()
@@ -21,8 +21,13 @@ async def upload_file(file: UploadFile = File(...)) -> FileUploadResponse:
 
     try:
         document = pymupdf.open(stream=content, filetype="pdf")
+        if getattr(document, "is_encrypted", False) or getattr(document, "needs_pass", False):
+            document.close()
+            raise PDFPasswordProtectedError("Password-protected PDFs are not supported.")
         page_count = len(document)
         document.close()
+    except (PDFInvalidError, PDFPasswordProtectedError):
+        raise
     except Exception as exc:
         raise PDFInvalidError("The uploaded file is corrupted or is not a PDF.") from exc
 
@@ -32,6 +37,9 @@ async def upload_file(file: UploadFile = File(...)) -> FileUploadResponse:
         raise PDFTooLargeError(f"PDF exceeds the maximum of {settings.max_pages} pages.")
 
     file_id = str(uuid.uuid4())
+    if len(uploaded_files) >= 100:
+        oldest_id = next(iter(uploaded_files))
+        uploaded_files.pop(oldest_id, None)
     uploaded_files[file_id] = content
     return FileUploadResponse(
         file_id=file_id,

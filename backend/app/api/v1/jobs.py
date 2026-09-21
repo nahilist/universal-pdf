@@ -1,3 +1,5 @@
+import re
+from urllib.parse import quote
 from fastapi import APIRouter, Response
 from app.schemas.job import JobCreate, JobListResponse, JobResponse
 from app.services.job_service import job_service
@@ -30,8 +32,15 @@ async def cancel_job(job_id: str) -> None:
 async def download_job(job_id: str) -> Response:
     job = job_service.get_job(job_id)
     pdf_content = job_service.get_translated_file(job_id)
+    filename = f"translated_{job.filename}"
+    ascii_filename = re.sub(r"[^a-zA-Z0-9_.-]", "_", filename) or "translated.pdf"
+    encoded_filename = quote(filename)
+    content_disposition = (
+        f'attachment; filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}'
+    )
     return Response(
         content=pdf_content,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="translated_{job.filename}"'},
+        headers={"Content-Disposition": content_disposition},
     )
+

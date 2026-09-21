@@ -74,6 +74,5 @@ htmlcov/
 .cache/
 tmp/
 temp/
-
-.env.example
 .swc
+

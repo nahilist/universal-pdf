@@ -1,10 +1,12 @@
 from html import escape
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, cast
 
 import pymupdf
 from deep_translator import GoogleTranslator
+from deep_translator.exceptions import TooManyRequests
 
-from app.core.exceptions import PDFInvalidError, TranslationFailedError
+from app.core.config import settings
+from app.core.exceptions import PDFInvalidError, TranslationFailedError, TranslationRateLimitError
 from app.schemas.job import LanguageInfo
 
 SUPPORTED_LANGUAGES: List[LanguageInfo] = [
@@ -24,6 +26,19 @@ SUPPORTED_LANGUAGES: List[LanguageInfo] = [
     LanguageInfo(code="tr", name="Turkish", native_name="Türkçe", popular=False),
 ]
 
+LANGUAGE_CODE_MAP: dict[str, str] = {
+    "zh": "zh-CN",
+    "zh-cn": "zh-CN",
+    "zh-tw": "zh-TW",
+    "he": "iw",
+    "jv": "jw",
+}
+
+
+def normalize_language_code(code: str) -> str:
+    cleaned = code.strip().lower()
+    return LANGUAGE_CODE_MAP.get(cleaned, cleaned)
+
 
 class TranslationEngine:
     def get_supported_languages(self) -> List[LanguageInfo]:
@@ -32,10 +47,22 @@ class TranslationEngine:
     def translate_text(self, text: str, source_lang: str, target_lang: str) -> str:
         if source_lang == target_lang:
             return text
+
+        if getattr(settings, "translation_provider", "google").lower() == "mock":
+            return f"[{target_lang.upper()}] {text}"
+
+        normalized_source = "auto" if source_lang == "auto" else normalize_language_code(source_lang)
+        normalized_target = normalize_language_code(target_lang)
+
         try:
-            source = "auto" if source_lang == "auto" else source_lang
-            return GoogleTranslator(source=source, target=target_lang).translate(text)
+            result = GoogleTranslator(source=normalized_source, target=normalized_target).translate(text)
+            return cast(str, result if result is not None else text)
+        except TooManyRequests as exc:
+            raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
         except Exception as exc:
+            err_msg = str(exc).lower()
+            if "too many requests" in err_msg or "rate limit" in err_msg:
+                raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
             raise TranslationFailedError(f"Translation service failed: {exc}") from exc
 
     def translate_pdf(
@@ -71,7 +98,14 @@ class TranslationEngine:
                     + escape(translated).replace("\n", "<br>")
                     + "</div>"
                 )
-                page.insert_htmlbox(page.rect + (36, 36, -36, -36), html)
+                margin = min(36.0, source_page.rect.width / 4, source_page.rect.height / 4)
+                target_rect = pymupdf.Rect(
+                    source_page.rect.x0 + margin,
+                    source_page.rect.y0 + margin,
+                    source_page.rect.x1 - margin,
+                    source_page.rect.y1 - margin,
+                )
+                page.insert_htmlbox(target_rect, html)
                 if progress_callback:
                     # Translation is the expensive phase. Reserve the final 10%
                     # for PDF reconstruction and serialization.
@@ -83,7 +117,7 @@ class TranslationEngine:
                 )
             if progress_callback:
                 progress_callback(95)
-            return output.tobytes(garbage=4, deflate=True)
+            return cast(bytes, output.tobytes(garbage=4, deflate=True))
         finally:
             output.close()
             source_document.close()

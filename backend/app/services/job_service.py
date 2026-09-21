@@ -31,6 +31,10 @@ class JobService:
             created_at=datetime.now(timezone.utc),
         )
         with self._lock:
+            if len(self._jobs) >= 200:
+                oldest_job_id = next(iter(self._jobs))
+                self._jobs.pop(oldest_job_id, None)
+                self._translated_files.pop(oldest_job_id, None)
             self._jobs[job_id] = job
         self._executor.submit(self._process_job, job_id, content, data.source_language, data.target_language)
         return job
@@ -54,6 +58,10 @@ class JobService:
                 # The job may have been cancelled while translation was running.
                 if job_id not in self._jobs:
                     return
+                # Limit stored files to prevent memory leak
+                if len(self._translated_files) >= 100:
+                    oldest_id = next(iter(self._translated_files))
+                    self._translated_files.pop(oldest_id, None)
                 self._translated_files[job_id] = translated
                 job = self._jobs[job_id]
                 job.status = JobStatus.COMPLETED
@@ -62,11 +70,11 @@ class JobService:
                 job.download_url = f"/api/v1/jobs/{job_id}/download"
         except Exception as exc:
             with self._lock:
-                job = self._jobs.get(job_id)
-                if job:
-                    job.status = JobStatus.FAILED
-                    job.error_message = str(exc)
-                    job.completed_at = datetime.now(timezone.utc)
+                failed_job = self._jobs.get(job_id)
+                if failed_job:
+                    failed_job.status = JobStatus.FAILED
+                    failed_job.error_message = str(exc)
+                    failed_job.completed_at = datetime.now(timezone.utc)
 
     def get_translated_file(self, job_id: str) -> bytes:
         self.get_job(job_id)

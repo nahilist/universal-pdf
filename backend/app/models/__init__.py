@@ -13,14 +13,14 @@ class Base(DeclarativeBase):
 
 
 class JobStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    OCR_PROCESSING = "ocr_processing"
-    TRANSLATING = "translating"
-    RECONSTRUCTING = "reconstructing"
-    VALIDATING = "validating"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    OCR_PROCESSING = "OCR_PROCESSING"
+    TRANSLATING = "TRANSLATING"
+    RECONSTRUCTING = "RECONSTRUCTING"
+    VALIDATING = "VALIDATING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class User(Base):

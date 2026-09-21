@@ -1,3 +1,3 @@
-from app.workers import translation_worker
+"""Worker package initialization."""
 
-__all__ = ["translation_worker"]
+__all__: list[str] = []

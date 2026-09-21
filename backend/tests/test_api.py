@@ -123,3 +123,65 @@ def test_v1_file_upload() -> None:
     )
     assert corrupt_res.status_code == 400
     assert corrupt_res.json()["error_code"] == "PDF_INVALID"
+
+
+def test_v1_health_base() -> None:
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_v1_encrypted_file_upload_rejected() -> None:
+    doc = pymupdf.open()
+    doc.new_page()
+    encrypted_bytes = doc.tobytes(
+        encryption=pymupdf.PDF_ENCRYPT_AES_256,
+        owner_pw="secret_owner",
+        user_pw="secret_user",
+    )
+    doc.close()
+
+    res = client.post(
+        "/api/v1/files/upload",
+        files={"file": ("locked.pdf", io.BytesIO(encrypted_bytes), "application/pdf")},
+    )
+    assert res.status_code == 400
+    assert res.json()["error_code"] == "PDF_PASSWORD_PROTECTED"
+
+
+def test_v1_unicode_filename_download() -> None:
+    document = pymupdf.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Sample text")
+    source_pdf = document.tobytes()
+    document.close()
+
+    upload_res = client.post(
+        "/api/v1/files/upload",
+        files={"file": ("résumé_español.pdf", source_pdf, "application/pdf")},
+    )
+    assert upload_res.status_code == 200
+    file_id = upload_res.json()["file_id"]
+
+    payload = {
+        "file_id": file_id,
+        "source_language": "en",
+        "target_language": "es",
+        "filename": "résumé_español.pdf",
+    }
+    with patch("app.translation.engine.TranslationEngine.translate_text", return_value="Texto traducido"):
+        create_res = client.post("/api/v1/jobs", json=payload)
+        assert create_res.status_code == 201
+        job_id = create_res.json()["id"]
+
+        deadline = time.monotonic() + 5
+        job_data = client.get(f"/api/v1/jobs/{job_id}").json()
+        while job_data["status"] not in ("COMPLETED", "FAILED") and time.monotonic() < deadline:
+            time.sleep(0.01)
+            job_data = client.get(f"/api/v1/jobs/{job_id}").json()
+
+    assert job_data["status"] == "COMPLETED"
+    dl_res = client.get(f"/api/v1/jobs/{job_id}/download")
+    assert dl_res.status_code == 200
+    assert "filename*=UTF-8" in dl_res.headers["content-disposition"]
+

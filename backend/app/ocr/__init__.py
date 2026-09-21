@@ -1,3 +1,3 @@
-from app.ocr import base, tesseract, paddleocr
+"""OCR package initialization."""
 
-__all__ = ["base", "tesseract", "paddleocr"]
+__all__: list[str] = []
