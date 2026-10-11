@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: linguaflow-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=LinguaFlow API
+      - DEBUG=False
+      - TRANSLATION_PROVIDER=google
+      - SECRET_KEY=change-me-to-a-secure-secret-key
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: linguaflow-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    restart: unless-stopped
+    depends_on:
+      - backend
+
