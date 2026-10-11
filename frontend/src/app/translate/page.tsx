@@ -48,9 +48,17 @@ export default function TranslatePage() {
   const [sourceLanguage, setSourceLanguage] = useState("auto");
   const [targetLanguage, setTargetLanguage] = useState("hi");
   const activeRequest = useRef<AbortController | null>(null);
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
+  const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000")
     .replace(/\/+$/, "")
     .replace(/\/api\/v1$/, "");
+
+  // If frontend is loaded over HTTPS (e.g. Vercel) but backend is HTTP,
+  // browsers block direct fetch as "Mixed Content" (Failed to fetch).
+  // In that case, use relative path "" so it proxies through Next.js rewrites!
+  const isHttpsOrigin =
+    typeof window !== "undefined" && window.location.protocol === "https:";
+  const isHttpBackend = rawApiUrl.startsWith("http://");
+  const apiUrl = isHttpsOrigin && isHttpBackend ? "" : rawApiUrl;
 
   const handleFile = async (file: File) => {
     if (
@@ -144,17 +152,21 @@ export default function TranslatePage() {
       if (!job.download_url)
         throw new Error("The server did not provide a download link.");
       setProgress(100);
-      setDownloadUrl(`${apiUrl}${job.download_url}`);
+      setDownloadUrl(apiUrl ? `${apiUrl}${job.download_url}` : job.download_url);
       setState("success");
     } catch (error) {
       if (controller.signal.aborted) return;
-      setErrorMessage(
+      let msg =
         error instanceof DOMException && error.name === "TimeoutError"
           ? "The server took too long to respond. Please try a smaller PDF."
           : error instanceof Error
             ? error.message
-            : "Translation failed.",
-      );
+            : "Translation failed.";
+      if (msg.includes("Failed to fetch")) {
+        msg =
+          "Could not connect to the translation backend. If using HTTPS, ensure your backend supports HTTPS or is routed through the proxy.";
+      }
+      setErrorMessage(msg);
       setState("error");
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
