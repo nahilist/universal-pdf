@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     max_upload_size: int = 50 * 1024 * 1024
     max_pages: int = 200
 
-    translation_provider: str = "mock"
+    translation_provider: str = "mymemory"
 
 
 settings = Settings()

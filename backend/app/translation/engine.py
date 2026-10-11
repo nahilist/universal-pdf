@@ -1,8 +1,9 @@
+import time
 from html import escape
 from typing import Callable, List, Optional, cast
 
 import pymupdf
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 from deep_translator.exceptions import TooManyRequests
 
 from app.core.config import settings
@@ -34,6 +35,25 @@ LANGUAGE_CODE_MAP: dict[str, str] = {
     "jv": "jw",
 }
 
+MYMEMORY_LANGUAGE_MAP: dict[str, str] = {
+    "en": "en-GB",
+    "hi": "hi-IN",
+    "es": "es-ES",
+    "fr": "fr-FR",
+    "de": "de-DE",
+    "zh": "zh-CN",
+    "zh-cn": "zh-CN",
+    "zh-tw": "zh-TW",
+    "ja": "ja-JP",
+    "ar": "ar-SA",
+    "pt": "pt-PT",
+    "ru": "ru-RU",
+    "it": "it-IT",
+    "ko": "ko-KR",
+    "nl": "nl-NL",
+    "tr": "tr-TR",
+}
+
 
 def normalize_language_code(code: str) -> str:
     cleaned = code.strip().lower()
@@ -44,25 +64,103 @@ class TranslationEngine:
     def get_supported_languages(self) -> List[LanguageInfo]:
         return SUPPORTED_LANGUAGES
 
+    def _chunk_text(self, text: str, max_chars: int = 450) -> List[str]:
+        paragraphs = text.split("\n")
+        chunks: List[str] = []
+        current: List[str] = []
+        current_len = 0
+        for p in paragraphs:
+            p = p.strip()
+            if not p:
+                continue
+            if len(p) > max_chars:
+                words = p.split(" ")
+                line: List[str] = []
+                line_len = 0
+                for w in words:
+                    if line_len + len(w) + 1 > max_chars:
+                        if line:
+                            chunks.append(" ".join(line))
+                        line = [w]
+                        line_len = len(w)
+                    else:
+                        line.append(w)
+                        line_len += len(w) + 1
+                if line:
+                    chunks.append(" ".join(line))
+            elif current_len + len(p) + 1 > max_chars:
+                if current:
+                    chunks.append("\n".join(current))
+                current = [p]
+                current_len = len(p)
+            else:
+                current.append(p)
+                current_len += len(p) + 1
+        if current:
+            chunks.append("\n".join(current))
+        return chunks if chunks else [text[:max_chars]]
+
+    def _translate_mymemory(self, text: str, source_lang: str, target_lang: str) -> str:
+        clean_text = text.strip()
+        if not clean_text:
+            return text
+
+        src_mem = MYMEMORY_LANGUAGE_MAP.get(source_lang.lower(), "en-GB")
+        tgt_mem = MYMEMORY_LANGUAGE_MAP.get(target_lang.lower(), target_lang)
+
+        chunks = self._chunk_text(clean_text, max_chars=450)
+        translated_parts: List[str] = []
+
+        for index, chunk in enumerate(chunks):
+            if index > 0:
+                time.sleep(0.1)
+            try:
+                part = MyMemoryTranslator(source=src_mem, target=tgt_mem).translate(chunk)
+                translated_parts.append(cast(str, part if part is not None else chunk))
+            except TooManyRequests as exc:
+                raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
+            except Exception as exc:
+                err_msg = str(exc).lower()
+                if "too many requests" in err_msg or "rate limit" in err_msg:
+                    raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
+                raise TranslationFailedError(f"Translation service failed: {exc}") from exc
+
+        return "\n\n".join(translated_parts)
+
     def translate_text(self, text: str, source_lang: str, target_lang: str) -> str:
         if source_lang == target_lang:
             return text
 
-        if getattr(settings, "translation_provider", "google").lower() == "mock":
+        provider = getattr(settings, "translation_provider", "mymemory").lower()
+        if provider == "mock":
             return f"[{target_lang.upper()}] {text}"
 
         normalized_source = "auto" if source_lang == "auto" else normalize_language_code(source_lang)
         normalized_target = normalize_language_code(target_lang)
 
+        if provider == "mymemory":
+            return self._translate_mymemory(text, normalized_source, normalized_target)
+
         try:
             result = GoogleTranslator(source=normalized_source, target=normalized_target).translate(text)
             return cast(str, result if result is not None else text)
-        except TooManyRequests as exc:
-            raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
-        except Exception as exc:
+        except (TooManyRequests, Exception) as exc:
             err_msg = str(exc).lower()
-            if "too many requests" in err_msg or "rate limit" in err_msg:
-                raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
+            is_rate_limit = (
+                isinstance(exc, TooManyRequests)
+                or "too many requests" in err_msg
+                or "rate limit" in err_msg
+                or "ssl" in err_msg
+                or "max retries" in err_msg
+                or "429" in err_msg
+            )
+            if is_rate_limit:
+                try:
+                    return self._translate_mymemory(text, normalized_source, normalized_target)
+                except Exception as mem_exc:
+                    if isinstance(mem_exc, (TranslationRateLimitError, TranslationFailedError)):
+                        raise mem_exc
+                    raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from mem_exc
             raise TranslationFailedError(f"Translation service failed: {exc}") from exc
 
     def translate_pdf(
@@ -89,10 +187,13 @@ class TranslationEngine:
                     continue
 
                 found_text = True
-                chunks = [text[index:index + 4000] for index in range(0, len(text), 4000)]
-                translated = "\n\n".join(
-                    self.translate_text(chunk, source_lang, target_lang) for chunk in chunks
-                )
+                chunks = self._chunk_text(text, max_chars=450)
+                translated_parts: List[str] = []
+                for idx, chunk in enumerate(chunks):
+                    if idx > 0:
+                        time.sleep(0.1)
+                    translated_parts.append(self.translate_text(chunk, source_lang, target_lang))
+                translated = "\n\n".join(translated_parts)
                 html = (
                     "<div style='font-family: sans-serif; font-size: 11pt; line-height: 1.4;'>"
                     + escape(translated).replace("\n", "<br>")

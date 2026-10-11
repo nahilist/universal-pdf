@@ -9,7 +9,7 @@ services:
     environment:
       - APP_NAME=LinguaFlow API
       - DEBUG=False
-      - TRANSLATION_PROVIDER=google
+      - TRANSLATION_PROVIDER=mymemory
       - SECRET_KEY=change-me-to-a-secure-secret-key
     restart: unless-stopped
 
