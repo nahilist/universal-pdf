@@ -33,6 +33,7 @@ class JobResponse(BaseModel):
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     download_url: Optional[str] = None
+    user_id: Optional[str] = Field(default=None, description="Clerk user ID")
 
 
 class JobListResponse(BaseModel):

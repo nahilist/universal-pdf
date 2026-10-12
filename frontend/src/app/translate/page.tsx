@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { SignedIn, SignedOut, UserButton, useAuth } from "@clerk/nextjs";
 
 type UploadState =
   "idle" | "dragging" | "uploading" | "processing" | "success" | "error";
@@ -37,6 +38,7 @@ const languages = [
 ] as const;
 
 export default function TranslatePage() {
+  const { getToken } = useAuth();
   const [state, setState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -88,10 +90,16 @@ export default function TranslatePage() {
     const controller = new AbortController();
     activeRequest.current = controller;
     try {
+      const token = await getToken().catch(() => null);
+      const uploadHeaders: HeadersInit = {};
+      if (token) {
+        uploadHeaders["Authorization"] = `Bearer ${token}`;
+      }
       const formData = new FormData();
       formData.append("file", file);
       const uploadResponse = await fetch(`${apiUrl}/api/v1/files/upload`, {
         method: "POST",
+        headers: uploadHeaders,
         body: formData,
         signal: createRequestSignal(controller.signal, 120_000),
       });
@@ -103,9 +111,13 @@ export default function TranslatePage() {
       const upload = (await uploadResponse.json()) as { file_id: string };
       setProgress(25);
       setState("processing");
+      const jobHeaders: HeadersInit = { "Content-Type": "application/json" };
+      if (token) {
+        jobHeaders["Authorization"] = `Bearer ${token}`;
+      }
       const jobResponse = await fetch(`${apiUrl}/api/v1/jobs`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jobHeaders,
         signal: createRequestSignal(controller.signal, 30_000),
         body: JSON.stringify({
           file_id: upload.file_id,
@@ -138,7 +150,12 @@ export default function TranslatePage() {
           throw new Error("Translation took too long to complete. Please try again.");
         }
         await new Promise((resolve) => setTimeout(resolve, 1000));
+        const statusHeaders: HeadersInit = {};
+        if (token) {
+          statusHeaders["Authorization"] = `Bearer ${token}`;
+        }
         const response = await fetch(`${apiUrl}/api/v1/jobs/${job.id}`, {
+          headers: statusHeaders,
           signal: createRequestSignal(controller.signal, 15_000),
           cache: "no-store",
         });
@@ -195,13 +212,26 @@ export default function TranslatePage() {
             </span>
             LinguaFlow
           </a>
-          <a
-            href="/"
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to home</span>
-          </a>
+          <div className="flex items-center gap-4">
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+            <SignedOut>
+              <a
+                href="/sign-in"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Sign in
+              </a>
+            </SignedOut>
+            <a
+              href="/"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back to home</span>
+            </a>
+          </div>
         </div>
       </header>
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 import uuid
-from typing import Dict
+from typing import Dict, Optional
 
 from app.core.exceptions import JobNotFoundError
 from app.schemas.job import JobCreate, JobListResponse, JobResponse, JobStatus
@@ -15,7 +15,7 @@ class JobService:
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pdf-translation")
         self._lock = RLock()
 
-    def create_job(self, data: JobCreate) -> JobResponse:
+    def create_job(self, data: JobCreate, user_id: Optional[str] = None) -> JobResponse:
         from app.api.v1.files import uploaded_files
         job_id = str(uuid.uuid4())
         content = uploaded_files.get(data.file_id) if data.file_id else None
@@ -29,6 +29,7 @@ class JobService:
             status=JobStatus.PENDING,
             progress=5,
             created_at=datetime.now(timezone.utc),
+            user_id=user_id,
         )
         with self._lock:
             if len(self._jobs) >= 200:
@@ -88,9 +89,12 @@ class JobService:
                 raise JobNotFoundError(f"Job with ID {job_id} not found.")
             return self._jobs[job_id]
 
-    def list_jobs(self) -> JobListResponse:
+    def list_jobs(self, user_id: Optional[str] = None) -> JobListResponse:
         with self._lock:
-            jobs = list(self._jobs.values())
+            if user_id:
+                jobs = [j for j in self._jobs.values() if j.user_id == user_id]
+            else:
+                jobs = list(self._jobs.values())
             return JobListResponse(jobs=jobs, total=len(jobs))
 
     def cancel_job(self, job_id: str) -> bool:

@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { LinkButton } from "@/components/ui/button";
 
 export function Navbar() {
@@ -49,15 +51,35 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <LinkButton
-              href="/translate"
-              variant="brand"
-              size="sm"
-              className="hidden sm:inline-flex"
-            >
-              Start translating
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </LinkButton>
+            <SignedOut>
+              <Link
+                href="/sign-in"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Sign in
+              </Link>
+              <LinkButton
+                href="/translate"
+                variant="brand"
+                size="sm"
+                className="hidden sm:inline-flex"
+              >
+                Start translating
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </LinkButton>
+            </SignedOut>
+            <SignedIn>
+              <LinkButton
+                href="/translate"
+                variant="brand"
+                size="sm"
+                className="hidden sm:inline-flex"
+              >
+                Translate PDF
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </LinkButton>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
           </div>
         </div>
       </div>

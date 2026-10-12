@@ -18,6 +18,8 @@ certifi==2026.7.22
     #   httpcore
     #   httpx
     #   requests
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+    # via cryptography
 charset-normalizer==3.5.1
     # via requests
 click==8.5.0
@@ -28,6 +30,8 @@ colorama==0.4.6 ; sys_platform == 'win32'
     # via
     #   typer
     #   uvicorn
+cryptography==50.0.2
+    # via pyjwt
 deep-translator==1.11.4
     # via linguaflow-backend
 dnspython==2.8.0
@@ -66,6 +70,8 @@ mdurl==0.1.2
     # via markdown-it-py
 orjson==3.12.0
     # via fastapi
+pycparser==3.11 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
 pydantic==2.7.1
     # via
     #   fastapi
@@ -77,6 +83,8 @@ pydantic-settings==2.2.1
     # via linguaflow-backend
 pygments==2.21.0
     # via rich
+pyjwt==2.8.0
+    # via linguaflow-backend
 pymupdf==1.24.5
     # via linguaflow-backend
 pymupdfb==1.24.3

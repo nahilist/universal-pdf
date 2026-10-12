@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     max_pages: int = 200
 
     translation_provider: str = "google"
+
+    clerk_pem_public_key: Optional[str] = None
+    clerk_jwks_url: Optional[str] = None
+    clerk_issuer: Optional[str] = None
 
 
 settings = Settings()

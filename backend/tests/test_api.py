@@ -185,3 +185,12 @@ def test_v1_unicode_filename_download() -> None:
     assert dl_res.status_code == 200
     assert "filename*=UTF-8" in dl_res.headers["content-disposition"]
 
+
+def test_auth_with_bearer_token() -> None:
+    import jwt
+    token = jwt.encode({"sub": "user_12345", "email": "test@example.com"}, "secret", algorithm="HS256")
+    res = client.get("/api/v1/jobs", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 200
+    assert "jobs" in res.json()
+
+

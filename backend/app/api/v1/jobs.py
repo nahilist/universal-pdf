@@ -1,6 +1,7 @@
 import re
 from urllib.parse import quote
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
+from app.core.auth import CurrentUser, get_current_user
 from app.schemas.job import JobCreate, JobListResponse, JobResponse
 from app.services.job_service import job_service
 
@@ -8,14 +9,21 @@ router = APIRouter()
 
 
 @router.post("", response_model=JobResponse, status_code=201)
-async def create_job(job_data: JobCreate) -> JobResponse:
+async def create_job(
+    job_data: JobCreate,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobResponse:
     # Return immediately; clients poll the job resource while a worker translates.
-    return job_service.create_job(job_data)
+    user_id = current_user.id if current_user.is_authenticated else None
+    return job_service.create_job(job_data, user_id=user_id)
 
 
 @router.get("", response_model=JobListResponse)
-async def list_jobs() -> JobListResponse:
-    return job_service.list_jobs()
+async def list_jobs(
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobListResponse:
+    user_id = current_user.id if current_user.is_authenticated else None
+    return job_service.list_jobs(user_id=user_id)
 
 
 @router.get("/{job_id}", response_model=JobResponse)
