@@ -1,0 +1,60 @@
+name: Production CD (Deploy to AWS EC2)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            set -e
+
+            # 1. Locate repository directory
+            if [ -d "$HOME/universal-pdf" ]; then
+              cd "$HOME/universal-pdf"
+            elif [ -d "$HOME/universalpdf" ]; then
+              cd "$HOME/universalpdf"
+            else
+              echo "Error: Project directory not found on EC2!"
+              exit 1
+            fi
+
+            echo "=== 1. Pulling latest code from GitHub ==="
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "=== 2. Rebuilding and restarting containers ==="
+            sudo docker compose up -d --build backend
+
+            echo "=== 3. Health check verification ==="
+            sleep 6
+            curl -f http://localhost:8000/api/v1/health || {
+              echo "Health check failed after deployment!"
+              sudo docker compose logs --tail=50 backend
+              exit 1
+            }
+
+            echo "=== 4. Cleaning unused Docker images ==="
+            sudo docker image prune -f
+
+            echo "=== Deployment Successfully Completed! ==="
