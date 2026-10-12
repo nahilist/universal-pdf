@@ -26,7 +26,7 @@ def test_translation_engine() -> None:
     langs = engine.get_supported_languages()
     assert len(langs) > 0
     with patch("app.core.config.settings.translation_provider", "google"):
-        with patch("app.translation.engine.GoogleTranslator.translate", return_value="नमस्ते"):
+        with patch.object(engine, "_translate_google_client", return_value="नमस्ते"):
             res = engine.translate_text("Hello", "en", "hi")
         assert res == "नमस्ते"
 
@@ -64,18 +64,19 @@ def test_safe_small_page_translation() -> None:
 def test_mymemory_translation_provider() -> None:
     engine = TranslationEngine()
     with patch("app.core.config.settings.translation_provider", "mymemory"):
-        with patch("app.translation.engine.MyMemoryTranslator.translate", return_value="नमस्ते"):
-            res = engine.translate_text("Hello", "en", "hi")
-        assert res == "नमस्ते"
+        with patch.object(engine, "_translate_google_client", return_value=None):
+            with patch("app.translation.engine.MyMemoryTranslator.translate", return_value="नमस्ते"):
+                res = engine.translate_text("Hello", "en", "hi")
+            assert res == "नमस्ते"
 
 
 def test_google_fallback_to_mymemory() -> None:
-    from deep_translator.exceptions import TooManyRequests
     engine = TranslationEngine()
     with patch("app.core.config.settings.translation_provider", "google"):
-        with patch("app.translation.engine.GoogleTranslator.translate", side_effect=TooManyRequests()):
+        with patch.object(engine, "_translate_google_client", return_value=None):
             with patch("app.translation.engine.MyMemoryTranslator.translate", return_value="Fallback नमस्ते"):
                 res = engine.translate_text("Hello", "en", "hi")
             assert res == "Fallback नमस्ते"
+
 
 

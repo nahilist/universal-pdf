@@ -3,6 +3,7 @@ from html import escape
 from typing import Callable, List, Optional, cast
 
 import pymupdf
+import requests
 from deep_translator import GoogleTranslator, MyMemoryTranslator
 from deep_translator.exceptions import TooManyRequests
 
@@ -100,6 +101,57 @@ class TranslationEngine:
             chunks.append("\n".join(current))
         return chunks if chunks else [text[:max_chars]]
 
+    def _translate_google_client(self, text: str, source_lang: str, target_lang: str) -> Optional[str]:
+        clean_text = text.strip()
+        if not clean_text:
+            return text
+
+        url = "https://clients5.google.com/translate_a/t"
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+        }
+        chunks = self._chunk_text(clean_text, max_chars=800)
+        translated_parts: List[str] = []
+
+        for index, chunk in enumerate(chunks):
+            if index > 0:
+                time.sleep(0.05)
+            params = {
+                "client": "dict-chrome-ex",
+                "sl": source_lang,
+                "tl": target_lang,
+                "q": chunk,
+            }
+            try:
+                resp = requests.get(url, params=params, headers=headers, timeout=10)
+                if resp.status_code != 200:
+                    return None
+                data = resp.json()
+                if isinstance(data, list):
+                    if len(data) > 0 and isinstance(data[0], list):
+                        translated_parts.append(
+                            "".join([
+                                item[0]
+                                for item in data
+                                if isinstance(item, list) and item and isinstance(item[0], str)
+                            ])
+                        )
+                    elif len(data) > 0 and isinstance(data[0], str):
+                        translated_parts.append("".join(data))
+                    else:
+                        return None
+                elif isinstance(data, str):
+                    translated_parts.append(data)
+                else:
+                    return None
+            except Exception:
+                return None
+
+        return "\n\n".join(translated_parts)
+
     def _translate_mymemory(self, text: str, source_lang: str, target_lang: str) -> str:
         clean_text = text.strip()
         if not clean_text:
@@ -131,36 +183,35 @@ class TranslationEngine:
         if source_lang == target_lang:
             return text
 
-        provider = getattr(settings, "translation_provider", "mymemory").lower()
+        provider = getattr(settings, "translation_provider", "google").lower()
         if provider == "mock":
             return f"[{target_lang.upper()}] {text}"
 
         normalized_source = "auto" if source_lang == "auto" else normalize_language_code(source_lang)
         normalized_target = normalize_language_code(target_lang)
 
-        if provider == "mymemory":
-            return self._translate_mymemory(text, normalized_source, normalized_target)
+        # 1. Primary: High-speed Google Client Extension API (No 429 rate limit, native auto-detect)
+        if provider in ("google", "auto"):
+            direct_result = self._translate_google_client(text, normalized_source, normalized_target)
+            if direct_result is not None:
+                return direct_result
 
+        # 2. Secondary: MyMemoryTranslator
+        try:
+            return self._translate_mymemory(text, normalized_source, normalized_target)
+        except Exception:
+            pass
+
+        # 3. Third: deep-translator GoogleTranslator
         try:
             result = GoogleTranslator(source=normalized_source, target=normalized_target).translate(text)
             return cast(str, result if result is not None else text)
-        except (TooManyRequests, Exception) as exc:
+        except TooManyRequests as exc:
+            raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
+        except Exception as exc:
             err_msg = str(exc).lower()
-            is_rate_limit = (
-                isinstance(exc, TooManyRequests)
-                or "too many requests" in err_msg
-                or "rate limit" in err_msg
-                or "ssl" in err_msg
-                or "max retries" in err_msg
-                or "429" in err_msg
-            )
-            if is_rate_limit:
-                try:
-                    return self._translate_mymemory(text, normalized_source, normalized_target)
-                except Exception as mem_exc:
-                    if isinstance(mem_exc, (TranslationRateLimitError, TranslationFailedError)):
-                        raise mem_exc
-                    raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from mem_exc
+            if "too many requests" in err_msg or "rate limit" in err_msg or "429" in err_msg:
+                raise TranslationRateLimitError("Translation service rate limit reached. Please wait a moment.") from exc
             raise TranslationFailedError(f"Translation service failed: {exc}") from exc
 
     def translate_pdf(
