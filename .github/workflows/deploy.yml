@@ -58,3 +58,4 @@ jobs:
             sudo docker image prune -f
 
             echo "=== Deployment Successfully Completed! ==="
+

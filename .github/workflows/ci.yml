@@ -90,3 +90,4 @@ jobs:
 
       - name: Build Frontend Docker image
         run: docker build -t linguaflow-frontend ./frontend
+
